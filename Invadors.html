@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Invadors</title>
+    <style>
+    canvas {
+        border: 1px solid black;
+    }
+    </style>
+</head>
+
+<body>
+    <script type="text/javascript">
+    //VARIABLES
+    var WIDTH = 640,
+        HEIGHT = 480;
+
+
+    var dir = 1;
+
+    var LEFT = 37,
+        RIGHT = 39,
+        SPACE = 32;
+
+    var enemies, bullets;
+
+
+    var player = {
+        x: null,
+        y: null,
+        w: 20,
+        h: 5,
+        mySpeed: 4,
+
+        update: function() {
+            if (input.down[LEFT] && this.x > 0) {
+                this.x -= this.mySpeed;
+            }
+            if (input.down[RIGHT] && this.x + this.w < WIDTH) {
+                this.x += this.mySpeed;
+            }
+        },
+        render: function() {
+            context.save();
+            context.fillStyle = 'black';
+            context.fillRect(this.x, this.y, this.w, this.h);
+            context.restore();
+        }
+    }
+
+
+
+    var Enemy = function(x, y, w, h) {
+
+        this.x = x;
+        this.y = y;
+        this.w = w;
+        this.h = h;
+
+        this.c = (function() {
+            var colors = ['green', 'blue', 'red', 'pink', 'orange', 'purple'];
+
+            return colors[Math.floor(Math.random() * 6)];
+        })();
+
+        //methods
+        this.render = function() {
+            context.save();
+            context.fillStyle = this.c;
+            context.fillRect(this.x, this.y, this.w, this.h);
+            context.restore();
+        }
+    }
+
+    var Bullet = function(x, y, velY, w, h) {
+        this.x = x;
+        this.y = y;
+        this.w = w;
+        this.h = h;
+        this.velY = velY;
+
+        this.update = function() {
+            this.y += this.velY;
+        };
+
+        this.render = function() {
+            context.fillRect(this.x, this.y, this.w, this.h);
+        }
+    }
+
+    function main() {
+
+        input = new InputHandler(); //input keyboard object;
+
+
+        canvas = document.createElement('canvas');
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+        context = canvas.getContext('2d');
+        document.body.appendChild(canvas);
+
+        var loop = function() {
+
+            update();
+            render();
+
+            requestAnimationFrame(loop);
+        }
+
+        init(loop); //INITTING OBJECTS
+    }
+
+    //
+    //
+    //INPUT HANDLER
+    function InputHandler() {
+        this.down = [];
+        this.pressed = [];
+
+        _this = this;
+        document.addEventListener('keydown', function(e) {
+            _this.down[e.keyCode] = true;
+        });
+        document.addEventListener('keyup', function(e) {
+            delete _this.down[e.keyCode];
+            delete _this.pressed[e.keyCode];
+        });
+    }
+    InputHandler.prototype.isPressed = function(code) {
+        if (this.pressed[code]) {
+            return false;
+        } else if (this.down[code]) {
+            return this.pressed[code] = true;
+        }
+        return false; //ITS GOOD PRACTICE TO RETURN FALSE IN ANY OTHER RANDOM CASE;
+    };
+    //INPUT FINISHED
+    //
+    //
+
+    function collision(a, b) {
+        if (a.x < b.x + b.w &&
+            a.x + a.w > b.x &&
+            a.y < b.y + b.h &&
+            a.h + a.y > b.y) {
+            return true;
+        }
+    }
+
+    function init(loop) {
+
+        bullets = [];
+        enemies = [];
+
+
+        player.x = WIDTH / 2 - player.w / 2;
+        player.y = HEIGHT - player.h;
+
+        var initEnemyGrid = function(cols, rows, xStep, yStep) {
+            for (var i = 0; i < rows; i++) {
+                for (var j = 0; j < cols; j++) {
+                    enemies.push((new Enemy((50 + xStep) * j, (10 + yStep) * i + 30, 50, 10)));
+                }
+            }
+        }
+
+
+        initEnemyGrid(5, 5, 10, 15);
+        loop();
+
+    }
+
+    function update() {
+
+        player.update();
+
+
+        //MOVING ENEMY GRID
+        var speed = 3;
+        for (var i = 0; i < enemies.length; i++) {
+            //enemies[i].x += 1; BAD PRACTICE;
+            var a = enemies[i];
+
+            a.x += speed * dir;
+        }
+        for (var i = 0; i < enemies.length; i++) {
+
+            var a = enemies[i];
+
+            if (a.x + a.w >= WIDTH && dir === 1) {
+                dir = dir * -1;
+
+            } else if (a.x <= 0 && dir === -1) {
+                dir = dir * -1;
+            }
+        }
+
+        //SHOOTING TO ENEMIES
+        if (input.isPressed(SPACE)) {
+            bullets.push(new Bullet(player.x + player.w / 2, player.y - player.h, -8, 2, 6));
+        }
+        for (var i = 0, len = bullets.length; i < len; i++) {
+            var b = bullets[i]
+                //bullets[i].update(); BAD PRACTICE
+
+            b.update();
+
+            //remove bullets
+            if (b.y + b.h < 0 || b.y > HEIGHT) {
+                bullets.splice(i, 1);
+                i--;
+                len--;
+                //continue; //???
+            }
+
+            //Game over
+            if (collision(player, b) && b.velY > 0) {
+                console.log('You are DEAD');
+            }
+
+            for (var j = 0, len2 = enemies.length; j < len2; j++) {
+                var a = enemies[j];
+                if (collision(a, b) && b.velY < 0) {
+                    enemies.splice(j, 1);
+                    j--;
+                    len2--;
+                    bullets.splice(i, 1);
+                    i--;
+                    len--;
+                    //continue;
+                }
+            }
+
+        }
+
+        //Enemies shooting
+        if (Math.random() < 0.05 && enemies.length > 0) {
+
+            var a = enemies[Math.round(Math.random() * (enemies.length - 1))];
+            bullets.push(new Bullet(a.x + a.w * 0.5, a.y + a.h, 4, 2, 4));
+
+        }
+
+
+    }
+
+    function render() {
+
+        context.clearRect(0, 0, WIDTH, HEIGHT);
+
+        player.render();
+
+        for (var i = 0, len = enemies.length; i < len; i++) {
+
+            enemies[i].render();
+        }
+        for (var i = 0, len = bullets.length; i < len; i++) {
+            bullets[i].render();
+        }
+
+    }
+
+    main();
+    </script>
+</body>
+
+</html>
